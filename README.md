@@ -168,6 +168,26 @@ helm uninstall demo-app --namespace demo-app
 kubectl delete namespace demo-app
 ```
 
+## GitHub Actions workflow
+
+This repository includes a GitHub workflow at `.github/workflows/helm-package.yml` that packages and optionally releases the Helm chart.
+
+What it does:
+
+- runs on `push` to `main` and on manual `workflow_dispatch`
+- installs Helm and validates the chart with `helm lint`
+- builds chart dependencies and packages the chart into `packaged/*.tgz`
+- uploads the packaged chart as a workflow artifact
+- when a release is requested, it additionally:
+  - authenticates to GitHub Container Registry using `RELEASE_PAT`
+  - pushes the chart package to `oci://ghcr.io/balokolos/charts`
+  - creates or updates a GitHub release with the packaged chart attached
+
+Release conditions:
+
+- automatic release on `main` when the commit message contains `release=true`
+- manual release when the workflow is dispatched with input `release: true`
+
 ## Package
 
 hosted in github.
