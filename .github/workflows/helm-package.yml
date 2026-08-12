@@ -1,0 +1,96 @@
+name: Package Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Chart.yaml'
+      - 'values.yaml'
+      - 'templates/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create/update release'
+        required: true
+        default: 'false'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  package:
+    name: Package and Publish Helm Chart
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v4.0.5'
+
+      - name: Lint Helm chart
+        run: helm lint .
+
+      - name: Build Helm chart dependencies
+        run: helm dependency build .
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p packaged
+          helm package . --destination packaged
+
+      - name: Upload packaged chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-app-helm-package
+          path: packaged/*.tgz
+
+  release_asset:
+    name: Create or Update GitHub Release
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release=true')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true')
+    needs: package
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v4.0.5'
+
+      - name: Build Helm chart dependencies
+        run: helm dependency build .
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p packaged
+          helm package . --destination packaged
+
+      - name: Get chart version
+        id: chart
+        run: |
+          VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create or update GitHub release
+        uses: peter-evans/create-or-update-release@v4
+        with:
+          token: ${{ secrets.RELEASE_PAT }}
+          tag_name: v${{ steps.chart.outputs.version }}
+          release_name: demo-app-helm v${{ steps.chart.outputs.version }}
+          body: |
+            Helm chart release for version ${{ steps.chart.outputs.version }}.
+          draft: false
+          prerelease: false
+          files: packaged/*.tgz
+          make_latest: true

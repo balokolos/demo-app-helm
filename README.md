@@ -167,3 +167,8 @@ To remove the release and namespace:
 helm uninstall demo-app --namespace demo-app
 kubectl delete namespace demo-app
 ```
+
+## Package
+
+hosted in github.
+[https://github.com/users/balokolos/packages/container/package/charts%2Fdemo-app](https://github.com/users/balokolos/packages/container/package/charts%2Fdemo-app)
