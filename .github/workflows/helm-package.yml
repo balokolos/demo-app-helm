@@ -82,6 +82,18 @@ jobs:
           VERSION=$(grep '^version:' Chart.yaml | awk '{print $2}')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v5
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.RELEASE_PAT }}
+
+      - name: Push chart to GitHub Container Registry
+        run: |
+          CHART_PKG=$(ls packaged/*.tgz)
+          helm push "$CHART_PKG" oci://ghcr.io/balokolos/charts
+
       - name: Create or update GitHub release
         uses: peter-evans/create-or-update-release@v4
         with:
