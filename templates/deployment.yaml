@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "demo-app.fullname" . }}
+  namespace: {{ .Values.targetNamespace }}
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "demo-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "demo-app.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "demo-app.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.pvc.enabled }}
+      initContainers:
+        - name: init-demo-app-content
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /mnt/html
+              if [ ! -f /mnt/html/index.html ]; then
+                printf '%s\n' \
+                  '<html>' \
+                  '  <head><title>{{ .Values.config.appName }} Demo</title></head>' \
+                  '  <body>' \
+                  '    <h1>{{ .Values.config.appName }}</h1>' \
+                  '    <p>Mode: {{ .Values.config.appMode }}</p>' \
+                  '    <p>Log level: {{ .Values.config.logLevel }}</p>' \
+                  '    <p>Powered by nginx and Longhorn-backed PVC.</p>' \
+                  '  </body>' \
+                  '</html>' > /mnt/html/index.html
+              fi
+          volumeMounts:
+            - name: demo-app-storage
+              mountPath: /mnt/html
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: APP_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "demo-app.fullname" . }}-config
+                  key: appName
+            - name: APP_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "demo-app.fullname" . }}-config
+                  key: appMode
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "demo-app.fullname" . }}-config
+                  key: logLevel
+            - name: APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "demo-app.fullname" . }}-secret
+                  key: password
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.pvc.enabled }}
+          volumeMounts:
+            - name: demo-app-storage
+              mountPath: /usr/share/nginx/html
+          {{- end }}
+      {{- if .Values.pvc.enabled }}
+      volumes:
+        - name: demo-app-storage
+          persistentVolumeClaim:
+            claimName: {{ include "demo-app.fullname" . }}-pvc
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
