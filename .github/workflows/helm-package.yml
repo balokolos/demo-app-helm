@@ -83,7 +83,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Authenticate to GitHub Container Registry
-        uses: docker/login-action@v5
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -95,14 +95,15 @@ jobs:
           helm push "$CHART_PKG" oci://ghcr.io/balokolos/charts
 
       - name: Create or update GitHub release
-        uses: peter-evans/create-or-update-release@v4
+        uses: softprops/action-gh-release@v1
         with:
-          token: ${{ secrets.RELEASE_PAT }}
+          files: packaged/*.tgz
           tag_name: v${{ steps.chart.outputs.version }}
           release_name: demo-app-helm v${{ steps.chart.outputs.version }}
           body: |
             Helm chart release for version ${{ steps.chart.outputs.version }}.
           draft: false
           prerelease: false
-          files: packaged/*.tgz
           make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
